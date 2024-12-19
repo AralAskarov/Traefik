@@ -1,0 +1,40 @@
+version: '3'
+
+services:
+  traefik:
+    image: traefik:v3.0
+    container_name: traefik
+    restart: unless-stopped
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock:ro"
+      - "./traefik.yml:/traefik.yml:ro"
+      - "/home/aral/gitREPOS/infrastructure/certs:/certs" # Монтируем всю папку certs
+      - "/home/aral/gitREPOS/infrastructure/certs/acme.json:/certs/acme.json" # Правильный путь для acme.json
+    ports:
+      - "80:80"
+      - "443:443"
+      - "8080:8080"
+    networks:
+      - proxy  # Убедитесь, что сеть существует
+
+  flask-api:
+    image: arala/flask-secret-api
+    container_name: flask-api
+    restart: unless-stopped
+    environment:
+      - SECRET_PASSWORD=MySuperSecretPassword
+    networks:
+      - proxy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.flask-router.rule=Host(`flask.localhost`) && PathPrefix(`/`)"
+      - "traefik.http.routers.flask-router.entrypoints=websecure"
+      - "traefik.http.routers.flask-router.tls=true"
+      - "traefik.http.routers.flask-router.priority=10"  # Устанавливаем приоритет выше
+      - "traefik.http.services.flask-service.loadbalancer.server.port=5005"
+
+networks:
+  proxy:
+    external: true
+
+# Остальная часть конфигурации остается без изменений
